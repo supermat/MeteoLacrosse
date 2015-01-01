@@ -12,7 +12,7 @@ byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress serverWunder(38,102,136,125); // http://weatherstation.wunderground.com/
 String id = "IPROVENC66";
 String PASSWORD = "81163393";
-#define UPDATE_INTERVAL            60000    // if the connection is good wait 60 (300000) seconds before updating again - should not be less than 5
+#define UPDATE_INTERVAL            120000    // if the connection is good wait 60 (300000) seconds before updating again - should not be less than 5
 unsigned long update=0;
 boolean upload=1;
 
@@ -748,15 +748,16 @@ void printDirectory(EthernetClient cl,File dir, int numTabs) {
 
 void PriseWifi(bool p_etat)
 {
+  client.stop();
   IPAddress server(192,168,0,40);
   if (client.connect(server, 80))
   {
     Serial.println("Connection prise OK");
-    client.print("GET /goform/SystemCommand?command=GpioForCrond+0");
-    /*if(p_etat)
+    client.print("GET /goform/SystemCommand?command=GpioForCrond+");
+    if(p_etat)
       client.println("1");
     else
-      client.println("0");*/
+      client.println("0");
     client.println("HTTP/1.0 HOST: 192.168.0.40");
     client.println("Authorization: Basic YWRtaW46YWRtaW4=");
     client.println();
