@@ -5,6 +5,8 @@
 #include <Cosm.h>
 #include <SD.h>
 
+#define LOGGING;
+
 WS2300_Serial WS2300 = WS2300_Serial(Serial1);
 
 /*********/
@@ -44,6 +46,14 @@ CosmFeed feed(FEED_ID, datastreams, 5 /* number of datastreams */);
 CosmClient cosmclient(client);
 /*********/
 
+
+/**********/
+IPAddress smartplug1(192 , 168 , 0 , 40); //smartplug1
+String Ivalue ;
+String Wvalue ;
+String Vvalue ;
+/**********/
+
 void setup()
 {
 
@@ -81,6 +91,32 @@ void loop()
 
   listenSerie();
   listenWeb();
+  
+if(client.connect(smartplug1,23)) // making telnet connetion to plug
+  {
+    // Serial.println("Connected");
+    delay(200);
+    client.println("admin"); // user admin
+    delay(200);
+    client.println("admin"); // password admin
+    delay(1000);
+    client.flush();
+    Vvalue = GetPlugData("GetInfo V");
+    Wvalue = GetPlugData("GetInfo W");
+    Ivalue = GetPlugData("GetInfo I");
+    
+    Serial.print("Voltage : ");
+    Serial.print(Vvalue);
+    Serial.print(" Wattage : ");
+    Serial.println(Wvalue);
+    Serial.print(" Intensité : ");
+    Serial.println(Ivalue);
+    
+    // you can also use GetInfo I , for the amps
+    
+    client.flush();
+    client.stop();
+  }
   
   if (upload==1)
   {
@@ -303,12 +339,13 @@ void pubblica(){
   client.stop();
   delay (1000);
 
+/* Ne fonctionne plus depuis lajout du site web
 Serial.println("https://cosm.com/feeds/129635");
     int ret = cosmclient.put(feed, API_KEY);
     Serial.print("PUT return code: ");
     Serial.println(ret);
 //  digitalWrite(ledPin, LOW);
-
+*/
 }
 
 void pubbws(){
@@ -715,6 +752,9 @@ void WS(EthernetClient cl, char* p_req)
  else if(StrContains(p_req, "SapinOff")){
    PriseWifi(false);
  }
+ else if(StrContains(p_req, "SapinWatt")){
+   data=GetPlugDataForWS("GetInfo W");
+ }
  else{
     data = "inconnu";
  }
@@ -765,4 +805,45 @@ void PriseWifi(bool p_etat)
   else{
     Serial.println("Connection Prise Failed");
   }
+}
+
+/*****************************************/
+String GetPlugData(String command)
+{
+  client.println(command);
+  delay(1000);
+  command = "";
+   
+  while (client.available())
+  {
+  char c = client.read() ;
+  command = command + c ;
+  // Serial.print(c); // for debug
+  }
+  
+  int firstdollarsign = command.indexOf('$');
+  // Serial.println(firstdollarsign) ; // debug
+  command = command.substring(firstdollarsign+7,firstdollarsign+13);
+  return (command);
+}
+
+String GetPlugDataForWS(String command)
+{
+  if(client.connect(smartplug1,23)) // making telnet connetion to plug
+  {
+    // Serial.println("Connected");
+    delay(200);
+    client.println("admin"); // user admin
+    delay(200);
+    client.println("admin"); // password admin
+    delay(1000);
+    client.flush();
+    Wvalue = GetPlugData(command);
+       
+    // you can also use GetInfo I , for the amps
+    
+    client.flush();
+    client.stop();
+  }
+  return Wvalue;
 }

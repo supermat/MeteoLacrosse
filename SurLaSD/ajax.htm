@@ -43,7 +43,17 @@ var request = new XMLHttpRequest();
 			}}}}
 		request.open("GET", "ws/humint" + nocache, true);
 		request.send(null)
-		setTimeout('GetData()', 10000);
+
+var request = new XMLHttpRequest();
+		request.onreadystatechange = function() {
+			if (this.readyState == 4) {
+				if (this.status == 200) {
+					if (this.responseText != null) {
+						document.getElementById("WattSapin_txt").innerHTML = this.responseText;
+			}}}}
+		request.open("GET", "ws/SapinWatt" + nocache, true);
+		request.send(null)
+		//setTimeout('GetData()', 10000);
 	}	
 
 	function AllumerSapin()
@@ -62,13 +72,17 @@ var request = new XMLHttpRequest();
 }
 	</script>
 </head>
-<body onload="GetData()">
+<!--<body onload="GetData()">-->
+<body>
 <h1>Arduino AJAX Status</h1>
 <p>Température Extérieur: <div id="tempext_txt">-</div> °C</p>
 <p>Température Intérieur :<div id="tempint_txt">-</div> °C</p>
 
 <p>Humidité Extérieur: <div id="humext_txt">-</div> %</p>
 <p>Humidité Intérieur: <div id="humint_txt">-</div> %</p>
+<p>Puissance Prise Sapin: <div id="WattSapin_txt">-</div> %</p>
+<p><input type="Submit" value="Refresh Données" 
+    onclick="GetData()" /> </p>
 <p><input type="Submit" value="Allumer Sapin" 
     onclick="AllumerSapin()" /> </p>
 <p><input type="Submit" value="Eteindre Sapin" 
