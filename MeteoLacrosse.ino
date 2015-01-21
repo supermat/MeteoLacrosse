@@ -14,7 +14,7 @@ byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress serverWunder(38,102,136,125); // http://weatherstation.wunderground.com/
 String id = "IPROVENC66";
 String PASSWORD = "81163393";
-#define UPDATE_INTERVAL            120000    // if the connection is good wait 60 (300000) seconds before updating again - should not be less than 5
+#define UPDATE_INTERVAL            60000    // if the connection is good wait 60 (300000) seconds before updating again - should not be less than 5
 unsigned long update=0;
 boolean upload=1;
 
@@ -40,15 +40,18 @@ CosmDatastream datastreams[] = {
   CosmDatastream("hum_ext", 7, DATASTREAM_STRING),
   CosmDatastream("hum_int", 7, DATASTREAM_STRING),
   CosmDatastream("pression", 8, DATASTREAM_STRING),
+  CosmDatastream("watt_sapin", 10, DATASTREAM_STRING),
+  CosmDatastream("watt_lavelinge", 14, DATASTREAM_STRING)
 };
 // Wrap the datastream into a feed
-CosmFeed feed(FEED_ID, datastreams, 5 /* number of datastreams */);
+CosmFeed feed(FEED_ID, datastreams, 7 /* number of datastreams */);
 CosmClient cosmclient(client);
 /*********/
 
 
 /**********/
-IPAddress smartplug1(192 , 168 , 0 , 40); //smartplug1
+IPAddress smartplugSapin(192 , 168 , 0 , 40); 
+IPAddress smartplugLaveLinge(192 , 168 , 0 , 41); 
 String Ivalue ;
 String Wvalue ;
 String Vvalue ;
@@ -75,14 +78,16 @@ Serial.println("ERROR - Can't find index.htm file!");
     }
 Serial.println("SUCCESS - Found index.htm file.");
   //Ethernet.begin(mac,ip);
-  Ethernet.begin(mac, ip, subnet, gateway);
-  /*if (Ethernet.begin(mac) == 0) 
+  //Ethernet.begin(mac, ip, subnet, gateway); => COSM don't work with this config
+  if (Ethernet.begin(mac) == 0) 
   {
     Serial.println("Failed to configure Ethernet using DHCP");
     delay(1000);
     asm volatile ("  jmp 0"); //soft reset!  Replace with watchdog later...
-  }*/
+  }
   server.begin();
+  Serial.print("Ip Local : ");
+  Serial.println(Ethernet.localIP());
 }
  
 void loop()
@@ -91,32 +96,6 @@ void loop()
 
   listenSerie();
   listenWeb();
-  
-if(client.connect(smartplug1,23)) // making telnet connetion to plug
-  {
-    // Serial.println("Connected");
-    delay(200);
-    client.println("admin"); // user admin
-    delay(200);
-    client.println("admin"); // password admin
-    delay(1000);
-    client.flush();
-    Vvalue = GetPlugData("GetInfo V");
-    Wvalue = GetPlugData("GetInfo W");
-    Ivalue = GetPlugData("GetInfo I");
-    
-    Serial.print("Voltage : ");
-    Serial.print(Vvalue);
-    Serial.print(" Wattage : ");
-    Serial.println(Wvalue);
-    Serial.print(" Intensité : ");
-    Serial.println(Ivalue);
-    
-    // you can also use GetInfo I , for the amps
-    
-    client.flush();
-    client.stop();
-  }
   
   if (upload==1)
   {
@@ -131,12 +110,53 @@ if(client.connect(smartplug1,23)) // making telnet connetion to plug
     {
         update = millis();
  //       wdt_reset();
+        String wattSapin = GetPlugWatt(smartplugSapin);
+        datastreams[5].setString(wattSapin);
+        Serial.print("wattSapin: ");
+        Serial.println(wattSapin);
+        delay(100);
+        String wattLaveLinge = GetPlugWatt(smartplugLaveLinge);
+        datastreams[6].setString(wattLaveLinge);
+        Serial.print("wattLaveLinge: ");
+        Serial.println(wattLaveLinge);
+        //listenSmartplug(smartplugSapin);
         pubblica();
  //       wdt_reset();
         //Serial.println("tempo impiegato per fare la pubblicazione: ");
         Serial.println("Time taken to do the publication: ");
         Serial.println(millis()-update);
     }
+  }
+}
+
+void listenSmartplug(IPAddress p_IP)
+{
+  if(client.connect(p_IP,23)) // making telnet connetion to plug
+  {
+    // Serial.println("Connected");
+    delay(200);
+    client.println("admin"); // user admin
+    delay(200);
+    client.println("admin"); // password admin
+    delay(1000);
+    client.flush();
+    Vvalue = GetPlugData("GetInfo V");
+    Wvalue = GetPlugData("GetInfo W");
+    Ivalue = GetPlugData("GetInfo I");
+    
+    String watt = Wvalue.substring(0,4) + "." + Wvalue.substring(4);
+    
+    Serial.print("Voltage : ");
+    Serial.print(Vvalue);
+    Serial.print(" Wattage : ");
+    Serial.println(watt);
+    Serial.print(" Intensité : ");
+    Serial.println(Ivalue);
+    
+    // you can also use GetInfo I , for the amps
+    
+    client.flush();
+    client.stop();
   }
 }
 
@@ -339,13 +359,13 @@ void pubblica(){
   client.stop();
   delay (1000);
 
-/* Ne fonctionne plus depuis lajout du site web
+// Ne fonctionne plus depuis lajout du site web
 Serial.println("https://cosm.com/feeds/129635");
     int ret = cosmclient.put(feed, API_KEY);
     Serial.print("PUT return code: ");
     Serial.println(ret);
 //  digitalWrite(ledPin, LOW);
-*/
+
 }
 
 void pubbws(){
@@ -753,7 +773,7 @@ void WS(EthernetClient cl, char* p_req)
    PriseWifi(false);
  }
  else if(StrContains(p_req, "SapinWatt")){
-   data=GetPlugDataForWS("GetInfo W");
+   data=GetPlugWatt(smartplugSapin);
  }
  else{
     data = "inconnu";
@@ -788,9 +808,9 @@ void printDirectory(EthernetClient cl,File dir, int numTabs) {
 
 void PriseWifi(bool p_etat)
 {
-  client.stop();
-  IPAddress server(192,168,0,40);
-  if (client.connect(server, 80))
+  client.stop(); //==> sinon connection failed 
+  //IPAddress server(192,168,0,40);
+  if (client.connect(smartplugSapin, 80))
   {
     Serial.println("Connection prise OK");
     client.print("GET /goform/SystemCommand?command=GpioForCrond+");
@@ -805,6 +825,8 @@ void PriseWifi(bool p_etat)
   else{
     Serial.println("Connection Prise Failed");
   }
+  client.flush();
+  client.stop();
 }
 
 /*****************************************/
@@ -821,15 +843,23 @@ String GetPlugData(String command)
   // Serial.print(c); // for debug
   }
   
+  Serial.println(command);
   int firstdollarsign = command.indexOf('$');
-  // Serial.println(firstdollarsign) ; // debug
-  command = command.substring(firstdollarsign+7,firstdollarsign+13);
+  //Serial.println(firstdollarsign) ; // debug
+  if(firstdollarsign >= 0)
+  {
+    command = command.substring(firstdollarsign+7,firstdollarsign+13);
+  }
+  else
+  {
+    command = "KO";
+  }
   return (command);
 }
-
-String GetPlugDataForWS(String command)
+String GetPlugWatt(IPAddress p_ip)
 {
-  if(client.connect(smartplug1,23)) // making telnet connetion to plug
+  String watt = "KO";
+  if(client.connect(p_ip,23)) // making telnet connetion to plug
   {
     // Serial.println("Connected");
     delay(200);
@@ -838,12 +868,15 @@ String GetPlugDataForWS(String command)
     client.println("admin"); // password admin
     delay(1000);
     client.flush();
-    Wvalue = GetPlugData(command);
+    String value = GetPlugData("GetInfo W");
        
+    if(value != "KO")
+      watt = value.substring(0,4).toInt() + "." + value.substring(4);
     // you can also use GetInfo I , for the amps
     
     client.flush();
     client.stop();
   }
-  return Wvalue;
+  return watt;
 }
+
